@@ -1,165 +1,92 @@
+import { createClient } from '@supabase/supabase-js';
 import { Habit, HabitLog, User, HabitType } from '../types';
 
-// Keys for localStorage
-const STORAGE_KEYS = {
-  USERS: 'habitsync_users',
-  HABITS: 'habitsync_habits',
-  LOGS: 'habitsync_logs',
-  SESSION: 'habitsync_session',
-};
+const SUPABASE_URL = 'https://thecbbpymxleyapwjfoa.supabase.co';
+const SUPABASE_KEY = 'sb_publishable__noWY3y_gVlljcZFJKK0Xw_RRVer81g';
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- Auth Services ---
 
-export const mockRegister = async (email: string, password: string, name: string): Promise<User> => {
-  await delay(500);
-  const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-  
-  if (users.find(u => u.email === email)) {
-    throw new Error('User already exists');
-  }
-
-  const newUser: User = {
-    id: crypto.randomUUID(),
+export const mockRegister = async (email: string, pass: string, name: string) => {
+  const { data, error } = await supabase.auth.signUp({
     email,
-    name,
-  };
-
-  users.push(newUser);
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-  localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(newUser));
-  return newUser;
+    password: 'password123', // Keeping it simple for personal use
+    options: { data: { name } }
+  });
+  if (error) throw error;
+  return { id: data.user!.id, email: data.user!.email!, name };
 };
 
-export const mockLogin = async (email: string): Promise<User> => {
-  await delay(500);
-  const users: User[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-  const user = users.find(u => u.email === email);
-  
-  if (!user) {
-    throw new Error('Invalid credentials');
-  }
-
-  localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user));
-  return user;
+export const mockLogin = async (email: string) => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: 'password123',
+  });
+  if (error) throw error;
+  return { id: data.user!.id, email: data.user!.email!, name: data.user!.user_metadata.name };
 };
 
-export const mockLogout = async (): Promise<void> => {
-  await delay(200);
-  localStorage.removeItem(STORAGE_KEYS.SESSION);
-};
+export const mockLogout = () => supabase.auth.signOut();
 
-export const getSession = (): User | null => {
-  const session = localStorage.getItem(STORAGE_KEYS.SESSION);
-  return session ? JSON.parse(session) : null;
+export const getSession = () => {
+    const session = localStorage.getItem('sb-' + SUPABASE_URL.split('//')[1].split('.')[0] + '-auth-token');
+    if (!session) return null;
+    const parsed = JSON.parse(session);
+    return { id: parsed.user.id, email: parsed.user.email, name: parsed.user.user_metadata.name };
 };
 
 // --- Habit Services ---
 
 export const getHabits = async (userId: string): Promise<Habit[]> => {
-  await delay(300);
-  const habits: Habit[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HABITS) || '[]');
-  return habits.filter(h => h.userId === userId && h.active);
-};
-
-export const getHabit = async (habitId: string): Promise<Habit | undefined> => {
-  await delay(200);
-  const habits: Habit[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HABITS) || '[]');
-  return habits.find(h => h.id === habitId);
+  const { data } = await supabase.from('habits').select('*').eq('user_id', userId).eq('active', true);
+  return (data || []) as Habit[];
 };
 
 export const createHabit = async (userId: string, title: string, type: HabitType, unit?: string): Promise<Habit> => {
-  await delay(300);
-  const habits: Habit[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HABITS) || '[]');
+  const { data, error } = await supabase.from('habits').insert([
+    { user_id: userId, title, type, unit, active: true }
+  ]).select().single();
+  if (error) throw error;
+  return data as Habit;
+};
+
+export const logHabit = async (habitId: string, date: string, value: number, isBoolean: boolean) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  if (isBoolean && value === 0) { // Toggle off
+    await supabase.from('logs').delete().match({ habit_id: habitId, date });
+    return null;
+  }
+
+  const { data } = await supabase.from('logs').upsert({
+    habit_id: habitId,
+    user_id: user.id,
+    date,
+    value,
+    completed: value > 0
+  }).select().single();
   
-  const newHabit: Habit = {
-    id: crypto.randomUUID(),
-    userId,
-    title,
-    type,
-    unit: type === 'numeric' ? unit : undefined,
-    createdAt: new Date().toISOString(),
-    active: true,
-  };
-
-  habits.push(newHabit);
-  localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(habits));
-  return newHabit;
+  return data;
 };
-
-export const deleteHabit = async (habitId: string): Promise<void> => {
-  await delay(300);
-  const habits: Habit[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.HABITS) || '[]');
-  const updatedHabits = habits.map(h => h.id === habitId ? { ...h, active: false } : h);
-  localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(updatedHabits));
-};
-
-// --- Log Services ---
 
 export const getTodayLogs = async (userId: string): Promise<HabitLog[]> => {
-  const habits = await getHabits(userId);
-  const logs: HabitLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOGS) || '[]');
   const today = new Date().toISOString().split('T')[0];
-  
-  const habitIds = new Set(habits.map(h => h.id));
-  return logs.filter(l => habitIds.has(l.habitId) && l.date === today);
-};
-
-export const getAllLogsForUser = async (userId: string): Promise<HabitLog[]> => {
-  const habits = await getHabits(userId);
-  const logs: HabitLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOGS) || '[]');
-  const habitIds = new Set(habits.map(h => h.id));
-  return logs.filter(l => habitIds.has(l.habitId));
+  const { data } = await supabase.from('logs').select('*').eq('user_id', userId).eq('date', today);
+  return (data || []) as HabitLog[];
 };
 
 export const getHabitLogs = async (habitId: string): Promise<HabitLog[]> => {
-    // No delay for faster UI on detail pages
-    const logs: HabitLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOGS) || '[]');
-    return logs.filter(l => l.habitId === habitId);
-}
+    const { data } = await supabase.from('logs').select('*').eq('habit_id', habitId);
+    return (data || []) as HabitLog[];
+};
 
-export const logHabit = async (habitId: string, date: string, value: number, isBoolean: boolean): Promise<HabitLog | null> => {
-  await delay(200);
-  const logs: HabitLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.LOGS) || '[]');
-  const existingIndex = logs.findIndex(l => l.habitId === habitId && l.date === date);
+export const getHabit = async (id: string): Promise<Habit | undefined> => {
+    const { data } = await supabase.from('habits').select('*').eq('id', id).single();
+    return data;
+};
 
-  if (isBoolean) {
-    // Toggle logic for boolean
-    if (existingIndex > -1) {
-      logs.splice(existingIndex, 1);
-      localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
-      return null;
-    } else {
-      const newLog: HabitLog = {
-        id: crypto.randomUUID(),
-        habitId,
-        date,
-        value: 1,
-        completed: true,
-      };
-      logs.push(newLog);
-      localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
-      return newLog;
-    }
-  } else {
-    // Upsert logic for numeric
-    let log: HabitLog;
-    if (existingIndex > -1) {
-      logs[existingIndex].value = value;
-      logs[existingIndex].completed = value > 0;
-      log = logs[existingIndex];
-    } else {
-      log = {
-        id: crypto.randomUUID(),
-        habitId,
-        date,
-        value,
-        completed: value > 0,
-      };
-      logs.push(log);
-    }
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
-    return log;
-  }
+export const deleteHabit = async (id: string) => {
+    await supabase.from('habits').update({ active: false }).eq('id', id);
 };
