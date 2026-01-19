@@ -93,7 +93,7 @@ export const logHabit = async (
         value,
         completed: value > 0,
       },
-      { onConflict: "habit_id, date" }, // Tell Supabase to check for this pair
+      { onConflict: "habit_id, date" },
     )
     .select()
     .single();
