@@ -1,69 +1,21 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, AuthState } from '../types';
-import * as api from '../services/storage';
+import React, { createContext, useContext, useState } from 'react';
 
-interface AuthContextType extends AuthState {
-  login: (email: string) => Promise<void>;
-  register: (email: string, name: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<any>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    isAuthenticated: false,
-    isLoading: true,
-  });
-
-  useEffect(() => {
-    const user = api.getSession();
-    if (user) {
-      setState({ user, isAuthenticated: true, isLoading: false });
-    } else {
-      setState({ user: null, isAuthenticated: false, isLoading: false });
-    }
-  }, []);
-
-  const login = async (email: string) => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    try {
-      const user = await api.mockLogin(email);
-      setState({ user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
-      throw error;
-    }
-  };
-
-  const register = async (email: string, name: string) => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    try {
-      const user = await api.mockRegister(email, 'password123', name);
-      setState({ user, isAuthenticated: true, isLoading: false });
-    } catch (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
-      throw error;
-    }
-  };
-
-  const logout = async () => {
-    await api.mockLogout();
-    setState({ user: null, isAuthenticated: false, isLoading: false });
-  };
+  // Hardcoded user state
+  const [user] = useState({ id: "00000000-0000-0000-0000-000000000000", name: "Admin" });
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+        user, 
+        login: async () => {}, 
+        register: async () => {}, 
+        logout: () => {} 
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
