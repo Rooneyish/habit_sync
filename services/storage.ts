@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { Habit, HabitLog, User, HabitType } from "../types";
 
-
 const SUPABASE_URL = "https://thecbbpymxleyapwjfoa.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZWNiYnB5bXhsZXlhcHdqZm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MzM5NzgsImV4cCI6MjA4NDQwOTk3OH0.61Y7RBO33eVgDwjz_M6vs7v7DBmbq1MCOcYniL8IpFU";
+const SUPABASE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZWNiYnB5bXhsZXlhcHdqZm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MzM5NzgsImV4cCI6MjA4NDQwOTk3OH0.61Y7RBO33eVgDwjz_M6vs7v7DBmbq1MCOcYniL8IpFU";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -83,13 +83,23 @@ export const logHabit = async (
   value: number,
   isBoolean: boolean,
 ) => {
-  // Replace the numeric upsert block with this:
+  // Get the actual user session from Supabase first
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No active session found");
+
+  if (isBoolean && value === 0) {
+    await supabase.from("logs").delete().match({ habit_id: habitId, date });
+    return null;
+  }
+
   const { data, error: upsertError } = await supabase
     .from("logs")
     .upsert(
       {
         habit_id: habitId,
-        user_id: user.id,
+        user_id: user.id, // Fixed: correctly using session user id
         date,
         value,
         completed: value > 0,
