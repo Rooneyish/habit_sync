@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { Habit, HabitLog, User, HabitType } from "../types";
 
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = "https://thecbbpymxleyapwjfoa.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoZWNiYnB5bXhsZXlhcHdqZm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MzM5NzgsImV4cCI6MjA4NDQwOTk3OH0.61Y7RBO33eVgDwjz_M6vs7v7DBmbq1MCOcYniL8IpFU";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
