@@ -1,0 +1,5 @@
+{
+  "name": "HabitSync B/W",
+  "description": "A strict black-and-white cross-platform habit tracking system supporting boolean and numeric metrics.",
+  "requestFramePermissions": []
+}
